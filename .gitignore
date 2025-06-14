@@ -1,3 +1,9 @@
+# Custom
+data*/
+nanoAODfiles*/
+*.root
+*.png
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

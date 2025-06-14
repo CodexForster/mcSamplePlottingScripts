@@ -27,8 +27,20 @@ def deltaPhi(phi1, phi2):
     while dphi < -math.pi: dphi += 2*math.pi
     return abs(dphi)
 
+parser = argparse.ArgumentParser(description="Process NanoAOD ROOT files.")
+parser.add_argument("--i", type=str, required=True, help="Path to the directory containing NanoAOD ROOT files.")
+parser.add_argument("--f", type=str, required=True, help="Path to the plotting directory.")
+args = parser.parse_args()
+
+input_dir = args.i
+save_dir = args.f
+if not os.path.isdir(save_dir):
+    os.makedirs(save_dir)
+if not os.path.isdir(input_dir):
+    raise FileNotFoundError(f"The directory '{input_dir}' does not exist.")
+
 # Create output file and histograms
-out = ROOT.TFile("reco_WZ_mass.root", "RECREATE")
+out = ROOT.TFile(str(save_dir)+"reco_WZ_mass.root", "RECREATE")
 h_mZ = ROOT.TH1F("h_mZ", "Reconstructed Z mass; m_{ll} [GeV]; Events", 60, 60, 120)
 h_mW_lep = ROOT.TH1F("h_mW_lep", "Reconstructed leptonic W mass; m_{l#nu} [GeV]; Events", 60, 0, 200)
 h_leps = ROOT.TH1F("h_leps", "Reconstructed number of leptons; n_{l}; Events", 60, 0, 200)
@@ -39,14 +51,6 @@ n_W_leptonic = 0
 n_W_hadronic = 0
 n_Z_leptonic = 0
 n_Z_hadronic = 0
-
-parser = argparse.ArgumentParser(description="Process NanoAOD ROOT files.")
-parser.add_argument("--i", type=str, required=True, help="Path to the directory containing NanoAOD ROOT files.")
-args = parser.parse_args()
-
-input_dir = args.i
-if not os.path.isdir(input_dir):
-    raise FileNotFoundError(f"The directory '{input_dir}' does not exist.")
 
 root_files = glob.glob(os.path.join(input_dir, "*.root"))
 for root_file_iter, root_file_name in enumerate(root_files):

@@ -147,6 +147,7 @@ for root_file_iter, root_file_name in enumerate(root_files):
             if event.Jet_pt[i] > 30 and abs(event.Jet_eta[i]) < 4.7:
                 jets.append({'pt': event.Jet_pt[i], 'eta': event.Jet_eta[i], 'phi': event.Jet_phi[i], 'mass': event.Jet_mass[i]})
         h_jets.Fill(len(jets))
+        jets = sorted(jets, key=lambda x: -x['pt']) # Sort jets by descending pT
 
         # --- Signal region selection ---
         signal_region = False

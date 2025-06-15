@@ -27,6 +27,28 @@ def deltaPhi(phi1, phi2):
     while dphi < -math.pi: dphi += 2*math.pi
     return abs(dphi)
 
+def w_transverse_mass(pt_lep, phi_lep, met, met_phi):
+    dphi = deltaPhi(phi_lep, met_phi)
+    return math.sqrt(2 * pt_lep * met * (1 - math.cos(dphi)))
+
+def mT2_higgs(pt_lep1, phi_lep1, pt_lep2, phi_lep2, met, met_phi):
+    lep_p4 = get_lepton_p4(third_lepton['pt'], third_lepton['eta'], third_lepton['phi'], third_lepton['mass'])
+    jet1_p4 = get_jet_p4(jets[i1]['pt'], jets[i1]['eta'], jets[i1]['phi'], jets[i1]['mass'])
+    jet2_p4 = get_jet_p4(jets[i2]['pt'], jets[i2]['eta'], jets[i2]['phi'], jets[i2]['mass'])
+    vis_p4 = lep_p4 + jet1_p4 + jet2_p4
+    m_vis = vis_p4.M()
+    pt_vis = vis_p4.Pt()
+    px_vis = vis_p4.Px()
+    py_vis = vis_p4.Py()
+    px_miss = event.MET_pt * math.cos(event.MET_phi)
+    py_miss = event.MET_pt * math.sin(event.MET_phi)
+    et_vis = math.sqrt(m_vis**2 + pt_vis**2)
+    et_miss = event.MET_pt
+    mt2 = (et_vis + et_miss)**2 - ((px_vis + px_miss)**2 + (py_vis + py_miss)**2)
+    mt_higgs = math.sqrt(mt2) if mt2 > 0 else 0.
+    return mt_higgs
+
+
 parser = argparse.ArgumentParser(description="Process NanoAOD ROOT files.")
 parser.add_argument("--i", type=str, required=True, help="Path to the directory containing NanoAOD ROOT files.")
 parser.add_argument("--f", type=str, required=True, help="Path to the plotting directory.")
@@ -40,17 +62,18 @@ if not os.path.isdir(input_dir):
     raise FileNotFoundError(f"The directory '{input_dir}' does not exist.")
 
 # Create output file and histograms
-out = ROOT.TFile(str(save_dir)+"reco_WZ_mass.root", "RECREATE")
+out = ROOT.TFile(str(save_dir)+"/reco_WZ_mass.root", "RECREATE")
+h_leps = ROOT.TH1F("h_leps", "Reconstructed number of leptons; n_{l}; Events", 60, 0, 20)
+h_jets = ROOT.TH1F("h_jets", "Reconstructed number of jetss; n_{j}; Events", 60, 0, 20)
 h_mZ = ROOT.TH1F("h_mZ", "Reconstructed Z mass; m_{ll} [GeV]; Events", 60, 60, 120)
-h_mW_lep = ROOT.TH1F("h_mW_lep", "Reconstructed leptonic W mass; m_{l#nu} [GeV]; Events", 60, 0, 200)
-h_leps = ROOT.TH1F("h_leps", "Reconstructed number of leptons; n_{l}; Events", 60, 0, 200)
-h_jets = ROOT.TH1F("h_jets", "Reconstructed number of jetss; n_{j}; Events", 60, 0, 200)
 h_mW_had = ROOT.TH1F("h_mW_had", "Reconstructed hadronic W mass; m_{jj} [GeV]; Events", 60, 0, 200)
+h_mW_lep_T = ROOT.TH1F("h_mW_lep_T", "Reconstructed leptonic W transverse mass; m_{jj} [GeV]; Events", 60, 0, 200)
+h_mH_T = ROOT.TH1F("h_mH_T", "Reconstructed H transverse mass; m_{jj} [GeV]; Events", 60, 0, 200)
 
-n_W_leptonic = 0
-n_W_hadronic = 0
-n_Z_leptonic = 0
-n_Z_hadronic = 0
+n_Z_candidates = 0
+n_W_lep_candidates = 0
+n_W_had_candidates = 0
+n_H_candidates = 0
 
 root_files = glob.glob(os.path.join(input_dir, "*.root"))
 for root_file_iter, root_file_name in enumerate(root_files):
@@ -101,7 +124,7 @@ for root_file_iter, root_file_name in enumerate(root_files):
         zcand = min(zcands, key=lambda x: abs(x[2] - z_mass))
         z_leptons = [leptons[zcand[0]], leptons[zcand[1]]]
         h_mZ.Fill(zcand[2])
-        n_Z_leptonic += 1
+        n_Z_candidates += 1
 
         # # --- b-jet veto ---
         # has_bjet = False
@@ -148,42 +171,80 @@ for root_file_iter, root_file_name in enumerate(root_files):
                 signal_region = True
 
         if not signal_region:
-            continue  # Only fill W mass histograms for signal region
+            continue 
 
         # --- W (leptonic) reconstruction ---
         lep_p4 = get_lepton_p4(third_lepton['pt'], third_lepton['eta'], third_lepton['phi'], third_lepton['mass'])
         nu_p4 = ROOT.TLorentzVector()
         nu_p4.SetPtEtaPhiM(event.MET_pt, 0, event.MET_phi, 0)
         w_lep_mass = (lep_p4 + nu_p4).M()
-        h_mW_lep.Fill(w_lep_mass)
-        n_W_leptonic += 1
+        w_lep_mt = w_transverse_mass(third_lepton['pt'], third_lepton['phi'], event.MET_pt, event.MET_phi)
+        h_mW_lep_T.Fill(w_lep_mt)
+        n_W_lep_candidates += 1
 
         # --- W (hadronic) reconstruction ---
-        if len(jets) >= 2:
-            best_wjj = None
-            best_dm = 999
+        best_wjj_mass = None
+        best_wjj_pair = None
+        min_dm = 999.
+
+        if len(jets) == 1: # If only one jet, then the sole jet is the W
+            jet_p4 = get_jet_p4(jets[0]['pt'], jets[0]['eta'], jets[0]['phi'], jets[0]['mass'])
+            h_mW_had.Fill(jet_p4.M())
+            n_W_had_candidates += 1
+
+            # Visible system: lepton + jet
+            vis_p4 = lep_p4 + jet_p4
+            m_vis = vis_p4.M()
+            pt_vis = vis_p4.Pt()
+            px_vis = vis_p4.Px()
+            py_vis = vis_p4.Py()
+            px_miss = event.MET_pt * math.cos(event.MET_phi)
+            py_miss = event.MET_pt * math.sin(event.MET_phi)
+            et_vis = math.sqrt(m_vis**2 + pt_vis**2)
+            et_miss = event.MET_pt
+            mt2 = (et_vis + et_miss)**2 - ((px_vis + px_miss)**2 + (py_vis + py_miss)**2)
+            mt_higgs = math.sqrt(mt2) if mt2 > 0 else 0.
+            h_mH_T.Fill(mt_higgs)
+            n_H_candidates += 1
+
+        elif len(jets) >= 2:
             for i in range(len(jets)):
                 for j in range(i+1, len(jets)):
-                    j1 = get_jet_p4(jets[i]['pt'], jets[i]['eta'], jets[i]['phi'], jets[i]['mass'])
-                    j2 = get_jet_p4(jets[j]['pt'], jets[j]['eta'], jets[j]['phi'], jets[j]['mass'])
-                    m_jj = (j1 + j2).M()
-                    if abs(m_jj - 80.4) < best_dm:
-                        best_dm = abs(m_jj - 80.4)
-                        best_wjj = m_jj
-            if best_wjj:
-                h_mW_had.Fill(best_wjj)
-                n_W_hadronic += 1
+                    jet1 = jets[i]
+                    jet2 = jets[j]
+                    j1_p4 = get_jet_p4(jet1['pt'], jet1['eta'], jet1['phi'], jet1['mass'])
+                    j2_p4 = get_jet_p4(jet2['pt'], jet2['eta'], jet2['phi'], jet2['mass'])
+                    m_jj = (j1_p4 + j2_p4).M()
+                    if abs(m_jj - 80.4) < min_dm:
+                        min_dm = abs(m_jj - 80.4)
+                        best_wjj_mass = m_jj
+                        best_wjj_pair = (j1_p4, j2_p4)
+
+            if best_wjj_pair is not None:
+                h_mW_had.Fill(best_wjj_mass)
+                n_W_had_candidates += 1
+
+                # --- Higgs transverse mass reconstruction (H -> WW -> lnuqq) ---
+                vis_p4 = lep_p4 + best_wjj_pair[0] + best_wjj_pair[1]
+                m_vis = vis_p4.M()
+                pt_vis = vis_p4.Pt()
+                px_vis = vis_p4.Px()
+                py_vis = vis_p4.Py()
+                px_miss = event.MET_pt * math.cos(event.MET_phi)
+                py_miss = event.MET_pt * math.sin(event.MET_phi)
+                et_vis = math.sqrt(m_vis**2 + pt_vis**2)
+                et_miss = event.MET_pt
+                mt2 = (et_vis + et_miss)**2 - ((px_vis + px_miss)**2 + (py_vis + py_miss)**2)
+                mt_higgs = math.sqrt(mt2) if mt2 > 0 else 0.
+                h_mH_T.Fill(mt_higgs)
+                n_H_candidates += 1
     f.Close()
 
-h_mW_combined = h_mW_lep.Clone("h_mW_combined")
-h_mW_combined.SetTitle("Combined W mass (leptonic+hadronic); m_{W} [GeV]; Events")
-h_mW_combined.Add(h_mW_had)
-
-out.WriteTObject(h_mW_combined)
 out.Write()
 out.Close()
 
-print(f"Number of leptonically decaying Z's: {n_Z_leptonic}")
-print(f"Number of leptonically decaying W's: {n_W_leptonic}")
-print(f"Number of hadronically decaying W's: {n_W_hadronic}")
+print(f"Number of Z candidates: {n_Z_candidates}")
+print(f"Number of leptonic W candidates: {n_W_lep_candidates}")
+print(f"Number of hadronic W candidates: {n_W_had_candidates}")
+print(f"Number of H candidates: {n_H_candidates}")
 print("Histograms saved to reco_WZ_mass.root")

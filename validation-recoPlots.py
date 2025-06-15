@@ -228,7 +228,7 @@ for root_file_iter, root_file_name in enumerate(root_files):
 
         if Z_candidate is None or phi_H_candidate is None:
             continue
-        phi_Z = Z_candidate.phi
+        phi_Z = Z_candidate.phi()
         hist_delta_phi.Fill(deltaPhi(phi_Z, phi_H_candidate))
     f.Close()
 

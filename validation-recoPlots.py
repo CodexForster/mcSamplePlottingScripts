@@ -63,12 +63,12 @@ if not os.path.isdir(input_dir):
 
 # Create output file and histograms
 out = ROOT.TFile(str(save_dir)+"/reco_WZ_mass.root", "RECREATE")
-h_leps = ROOT.TH1F("h_leps", "Reconstructed number of leptons; n_{l}; Events", 40, 0, 20)
-h_jets = ROOT.TH1F("h_jets", "Reconstructed number of jets; n_{j}; Events", 40, 0, 20)
+h_leps = ROOT.TH1F("h_leps", "Reconstructed number of leptons; n_{l}; Events", 20, 0, 20)
+h_jets = ROOT.TH1F("h_jets", "Reconstructed number of jets; n_{j}; Events", 20, 0, 20)
 h_mZ = ROOT.TH1F("h_mZ", "Reconstructed Z mass; m_{ll} [GeV]; Events", 60, 60, 120)
 h_mW_had = ROOT.TH1F("h_mW_had", "Reconstructed hadronic W mass; m_{jj} [GeV]; Events", 50, 0, 500)
 h_mW_lep_T = ROOT.TH1F("h_mW_lep_T", "Reconstructed leptonic W_T mass; m_{LNu} [GeV]; Events", 50, 0, 200)
-h_mH_T = ROOT.TH1F("h_mH_T", "Reconstructed H_T mass; m_{H} [GeV]; Events", 50, 0, 500)
+h_mH_T = ROOT.TH1F("h_mH_T", "Reconstructed H_T mass; m_{H} [GeV]; Events", 60, 0, 600)
 
 n_Z_candidates = 0
 n_W_lep_candidates = 0

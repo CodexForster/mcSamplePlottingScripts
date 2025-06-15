@@ -69,6 +69,7 @@ h_mZ = ROOT.TH1F("h_mZ", "Reconstructed Z mass; m_{ll} [GeV]; Events", 60, 60, 1
 h_mW_had = ROOT.TH1F("h_mW_had", "Reconstructed hadronic W mass; m_{jj} [GeV]; Events", 50, 0, 500)
 h_mW_lep_T = ROOT.TH1F("h_mW_lep_T", "Reconstructed leptonic W_T mass; m_{LNu} [GeV]; Events", 50, 0, 200)
 h_mH_T = ROOT.TH1F("h_mH_T", "Reconstructed H_T mass; m_{H} [GeV]; Events", 60, 0, 600)
+hist_delta_phi = ROOT.TH1F("hist_delta_phi", "Delta Phi between Z and Higgs;delPhi;Events", 50, -math.pi, math.pi)
 
 n_Z_candidates = 0
 n_W_lep_candidates = 0
@@ -82,6 +83,8 @@ for root_file_iter, root_file_name in enumerate(root_files):
     f = ROOT.TFile.Open(root_file_name)
     tree = f.Get("Events")
     for event in tree:
+        Z_candidate = None
+        phi_H_candidate = None
         # --- Lepton selection (as in your table) ---
         leptons = []
         for i in range(event.nElectron):
@@ -124,6 +127,7 @@ for root_file_iter, root_file_name in enumerate(root_files):
         zcand = min(zcands, key=lambda x: abs(x[2] - z_mass))
         z_leptons = [leptons[zcand[0]], leptons[zcand[1]]]
         h_mZ.Fill(zcand[2])
+        Z_candidate = get_lepton_p4(z_leptons[0]['pt'], z_leptons[0]['eta'], z_leptons[0]['phi'], z_leptons[0]['mass']) + get_lepton_p4(z_leptons[1]['pt'], z_leptons[1]['eta'], z_leptons[1]['phi'], z_leptons[1]['mass'])
         n_Z_candidates += 1
 
         # # --- b-jet veto ---
@@ -218,6 +222,14 @@ for root_file_iter, root_file_name in enumerate(root_files):
             mt_higgs = math.sqrt(mt2) if mt2 > 0 else 0.
             h_mH_T.Fill(mt_higgs)
             n_H_candidates += 1
+            px_higgs = px_vis + px_miss
+            py_higgs = py_vis + py_miss
+            phi_H_candidate = math.atan2(py_higgs, px_higgs)
+
+        if Z_candidate is None or phi_H_candidate is None:
+            continue
+        phi_Z = Z_candidate.phi
+        hist_delta_phi.Fill(deltaPhi(phi_Z, phi_H_candidate))
     f.Close()
 
 out.Write()

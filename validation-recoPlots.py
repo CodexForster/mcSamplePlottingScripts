@@ -67,8 +67,8 @@ h_leps = ROOT.TH1F("h_leps", "Reconstructed number of leptons; n_{l}; Events", 6
 h_jets = ROOT.TH1F("h_jets", "Reconstructed number of jetss; n_{j}; Events", 60, 0, 20)
 h_mZ = ROOT.TH1F("h_mZ", "Reconstructed Z mass; m_{ll} [GeV]; Events", 60, 60, 120)
 h_mW_had = ROOT.TH1F("h_mW_had", "Reconstructed hadronic W mass; m_{jj} [GeV]; Events", 60, 0, 200)
-h_mW_lep_T = ROOT.TH1F("h_mW_lep_T", "Reconstructed leptonic W transverse mass; m_{jj} [GeV]; Events", 60, 0, 200)
-h_mH_T = ROOT.TH1F("h_mH_T", "Reconstructed H transverse mass; m_{jj} [GeV]; Events", 60, 0, 200)
+h_mW_lep_T = ROOT.TH1F("h_mW_lep_T", "Reconstructed leptonic W transverse mass; m_{lNu} [GeV]; Events", 60, 0, 200)
+h_mH_T = ROOT.TH1F("h_mH_T", "Reconstructed H transverse mass; m_{H} [GeV]; Events", 60, 0, 200)
 
 n_Z_candidates = 0
 n_W_lep_candidates = 0
@@ -187,13 +187,24 @@ for root_file_iter, root_file_name in enumerate(root_files):
         best_wjj_pair = None
         min_dm = 999.
 
-        if len(jets) == 1: # If only one jet, then the sole jet is the W
-            jet_p4 = get_jet_p4(jets[0]['pt'], jets[0]['eta'], jets[0]['phi'], jets[0]['mass'])
-            h_mW_had.Fill(jet_p4.M())
+        had_w_p4 = None
+
+        if len(jets) == 1:
+            # 1-jet signal region: the jet is the hadronic W
+            had_w_p4 = get_jet_p4(jets[0]['pt'], jets[0]['eta'], jets[0]['phi'], jets[0]['mass'])
+            h_mW_had.Fill(had_w_p4.M())
             n_W_had_candidates += 1
 
-            # Visible system: lepton + jet
-            vis_p4 = lep_p4 + jet_p4
+        elif len(jets) >= 2:
+            # 2-jet signal region: leading two jets are the hadronic W
+            had_w_p4 = get_jet_p4(jets[0]['pt'], jets[0]['eta'], jets[0]['phi'], jets[0]['mass']) + \
+                    get_jet_p4(jets[1]['pt'], jets[1]['eta'], jets[1]['phi'], jets[1]['mass'])
+            h_mW_had.Fill(had_w_p4.M())
+            n_W_had_candidates += 1
+
+        if had_w_p4 is not None:
+            # Visible system: lepton + hadronic W
+            vis_p4 = lep_p4 + had_w_p4
             m_vis = vis_p4.M()
             pt_vis = vis_p4.Pt()
             px_vis = vis_p4.Px()
@@ -206,38 +217,6 @@ for root_file_iter, root_file_name in enumerate(root_files):
             mt_higgs = math.sqrt(mt2) if mt2 > 0 else 0.
             h_mH_T.Fill(mt_higgs)
             n_H_candidates += 1
-
-        elif len(jets) >= 2:
-            for i in range(len(jets)):
-                for j in range(i+1, len(jets)):
-                    jet1 = jets[i]
-                    jet2 = jets[j]
-                    j1_p4 = get_jet_p4(jet1['pt'], jet1['eta'], jet1['phi'], jet1['mass'])
-                    j2_p4 = get_jet_p4(jet2['pt'], jet2['eta'], jet2['phi'], jet2['mass'])
-                    m_jj = (j1_p4 + j2_p4).M()
-                    if abs(m_jj - 80.4) < min_dm:
-                        min_dm = abs(m_jj - 80.4)
-                        best_wjj_mass = m_jj
-                        best_wjj_pair = (j1_p4, j2_p4)
-
-            if best_wjj_pair is not None:
-                h_mW_had.Fill(best_wjj_mass)
-                n_W_had_candidates += 1
-
-                # --- Higgs transverse mass reconstruction (H -> WW -> lnuqq) ---
-                vis_p4 = lep_p4 + best_wjj_pair[0] + best_wjj_pair[1]
-                m_vis = vis_p4.M()
-                pt_vis = vis_p4.Pt()
-                px_vis = vis_p4.Px()
-                py_vis = vis_p4.Py()
-                px_miss = event.MET_pt * math.cos(event.MET_phi)
-                py_miss = event.MET_pt * math.sin(event.MET_phi)
-                et_vis = math.sqrt(m_vis**2 + pt_vis**2)
-                et_miss = event.MET_pt
-                mt2 = (et_vis + et_miss)**2 - ((px_vis + px_miss)**2 + (py_vis + py_miss)**2)
-                mt_higgs = math.sqrt(mt2) if mt2 > 0 else 0.
-                h_mH_T.Fill(mt_higgs)
-                n_H_candidates += 1
     f.Close()
 
 out.Write()
